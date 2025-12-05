@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="5">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automation Log</title>
+    <style>
+        body { font-family: Consolas, "Courier New", monospace; background-color: #1e1e1e; color: #d4d4d4; margin: 0; padding: 20px; font-size: 14px; }
+        .log { white-space: pre-wrap; word-wrap: break-word; }
+        .log-info { color: #d4d4d4; }
+        .log-warn { color: #ffd700; }
+        .log-error { color: #f44336; font-weight: bold; }
+        .log-success { color: #4caf50; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Automation Run Log</h1>
+    <p>This page will auto-refresh every 5 seconds.</p>
+    <div id="log-container"><div class="log log-info">[2025-12-05T13:50:36.953Z] Launching browser...</div>
+<div class="log log-info">[2025-12-05T13:50:38.070Z] Found 2 PDF file(s) to process: 39 Bird Dog Ln.pdf, 42 Fortune Ln.pdf</div>
+<div class="log log-info">[2025-12-05T13:50:38.084Z] 
+--- Starting workflow for: 39 Bird Dog Ln.pdf ---</div>
+<div class="log log-info">[2025-12-05T13:50:38.086Z] 
+--- Starting Website B ---</div>
+<div class="log log-info">[2025-12-05T13:50:38.527Z] Navigating to https://prod-pramaan.vercel.app/...</div>
+<div class="log log-info">[2025-12-05T13:50:40.430Z] Attempting to log in...</div>
+<div class="log log-info">[2025-12-05T13:50:40.847Z] Login page title "DJRB Review" found.</div>
+<div class="log log-info">[2025-12-05T13:50:40.961Z] Login form found. Entering credentials...</div>
+<div class="log log-info">[2025-12-05T13:50:42.448Z] Login button clicked. Waiting for response...</div>
+<div class="log log-success">[2025-12-05T13:50:50.232Z] Login successful! Welcome text found.</div>
+<div class="log log-info">[2025-12-05T13:50:50.748Z] Waiting for and clicking "Full File Review"...</div>
+<div class="log log-success">[2025-12-05T13:50:51.037Z] "Full File Review" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:50:51.059Z] Waiting for the extractor page to load...</div>
+<div class="log log-info">[2025-12-05T13:50:52.464Z] Extractor page loaded.</div>
+<div class="log log-info">[2025-12-05T13:50:52.465Z] Setting Form Type to '1004'...</div>
+<div class="log log-info">[2025-12-05T13:50:52.881Z] Waiting for and clicking "Form Type '1004'"...</div>
+<div class="log log-success">[2025-12-05T13:50:53.265Z] "Form Type '1004'" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:50:53.267Z] Uploading PDF file...</div>
+<div class="log log-info">[2025-12-05T13:50:53.851Z] PDF file selected.</div>
+<div class="log log-info">[2025-12-05T13:50:53.859Z] Waiting for initial PDF processing to complete...</div>
+<div class="log log-info">[2025-12-05T13:50:54.353Z] --- Processing Sidebar Item: Subject (Timeout: 900s) ---</div>
+<div class="log log-info">[2025-12-05T13:50:54.355Z] Waiting for and clicking "Subject sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:50:56.059Z] "Subject sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:50:56.075Z] Waiting for Subject processing to begin...</div>
+<div class="log log-info">[2025-12-05T13:50:57.585Z] Spinner for Subject appeared.</div>
+<div class="log log-info">[2025-12-05T13:50:57.587Z] Waiting for Subject processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:51:29.631Z] Extraction of Subject section completed in 35.28s.</div>
+<div class="log log-info">[2025-12-05T13:51:29.633Z] Waiting for the contract dialog to appear...</div>
+<div class="log log-info">[2025-12-05T13:51:29.797Z] Contract dialog is visible.</div>
+<div class="log log-info">[2025-12-05T13:51:29.799Z] Waiting for and clicking "Extract Contract"...</div>
+<div class="log log-success">[2025-12-05T13:51:30.637Z] "Extract Contract" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:51:30.640Z] Waiting for contract extraction to complete...</div>
+<div class="log log-info">[2025-12-05T13:51:55.099Z] Contract extraction completed.</div>
+<div class="log log-info">[2025-12-05T13:51:55.109Z] --- Processing Sidebar Item: Contract (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:51:55.115Z] Waiting for and clicking "Contract sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:51:56.446Z] "Contract sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:51:56.448Z] Waiting for Contract processing to begin...</div>
+<div class="log log-warn">[2025-12-05T13:51:59.463Z] Spinner for Contract did not appear. Clicking again to ensure extraction starts.</div>
+<div class="log log-info">[2025-12-05T13:51:59.465Z] Waiting for and clicking "Contract sidebar item (2nd attempt)"...</div>
+<div class="log log-success">[2025-12-05T13:52:00.500Z] "Contract sidebar item (2nd attempt)" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:52:00.502Z] Waiting for Contract processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:52:00.815Z] Extraction of Contract section completed in 5.70s.</div>
+<div class="log log-info">[2025-12-05T13:52:00.818Z] --- Processing Sidebar Item: Neighborhood (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:52:00.832Z] Waiting for and clicking "Neighborhood sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:52:02.243Z] "Neighborhood sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:52:02.246Z] Waiting for Neighborhood processing to begin...</div>
+<div class="log log-info">[2025-12-05T13:52:03.934Z] Spinner for Neighborhood appeared.</div>
+<div class="log log-info">[2025-12-05T13:52:03.936Z] Waiting for Neighborhood processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:52:20.264Z] Extraction of Neighborhood section completed in 19.44s.</div>
+<div class="log log-info">[2025-12-05T13:52:20.266Z] --- Processing Sidebar Item: Site (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:52:20.267Z] Waiting for and clicking "Site sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:52:21.039Z] "Site sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:52:21.040Z] Waiting for Site processing to begin...</div>
+<div class="log log-info">[2025-12-05T13:52:22.091Z] Spinner for Site appeared.</div>
+<div class="log log-info">[2025-12-05T13:52:22.092Z] Waiting for Site processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:53:03.252Z] Extraction of Site section completed in 42.98s.</div>
+<div class="log log-info">[2025-12-05T13:53:03.254Z] --- Processing Sidebar Item: Improvements (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:53:03.257Z] Waiting for and clicking "Improvements sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:53:04.332Z] "Improvements sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:53:04.335Z] Waiting for Improvements processing to begin...</div>
+<div class="log log-info">[2025-12-05T13:53:05.803Z] Spinner for Improvements appeared.</div>
+<div class="log log-info">[2025-12-05T13:53:05.806Z] Waiting for Improvements processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:54:04.034Z] Extraction of Improvements section completed in 60.78s.</div>
+<div class="log log-info">[2025-12-05T13:54:04.036Z] --- Processing Sidebar Item: Sales Comparison & History (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:54:04.037Z] Waiting for and clicking "Sales Comparison & History sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:54:04.813Z] "Sales Comparison & History sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:54:04.818Z] Waiting for Sales Comparison & History processing to begin...</div>
+<div class="log log-info">[2025-12-05T13:54:06.081Z] Spinner for Sales Comparison & History appeared.</div>
+<div class="log log-info">[2025-12-05T13:54:06.085Z] Waiting for Sales Comparison & History processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:55:16.733Z] Extraction of Sales Comparison & History section completed in 72.69s.</div>
+<div class="log log-info">[2025-12-05T13:55:16.735Z] --- Processing Sidebar Item: RECONCILIATION (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:55:16.737Z] Waiting for and clicking "RECONCILIATION sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:55:18.367Z] "RECONCILIATION sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:55:18.373Z] Waiting for RECONCILIATION processing to begin...</div>
+<div class="log log-warn">[2025-12-05T13:55:21.399Z] Spinner for RECONCILIATION did not appear. Clicking again to ensure extraction starts.</div>
+<div class="log log-info">[2025-12-05T13:55:21.429Z] Waiting for and clicking "RECONCILIATION sidebar item (2nd attempt)"...</div>
+<div class="log log-success">[2025-12-05T13:55:25.521Z] "RECONCILIATION sidebar item (2nd attempt)" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:55:25.525Z] Waiting for RECONCILIATION processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:55:49.616Z] Extraction of RECONCILIATION section completed in 32.88s.</div>
+<div class="log log-info">[2025-12-05T13:55:49.714Z] --- Processing Sidebar Item: Cost Approach (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:55:49.740Z] Waiting for and clicking "Cost Approach sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:55:51.344Z] "Cost Approach sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:55:51.347Z] Waiting for Cost Approach processing to begin...</div>
+<div class="log log-info">[2025-12-05T13:55:53.213Z] Spinner for Cost Approach appeared.</div>
+<div class="log log-info">[2025-12-05T13:55:53.215Z] Waiting for Cost Approach processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:56:28.253Z] Extraction of Cost Approach section completed in 38.52s.</div>
+<div class="log log-info">[2025-12-05T13:56:28.255Z] --- Processing Sidebar Item: Income Approach (Timeout: 600s) ---</div>
+<div class="log log-info">[2025-12-05T13:56:28.256Z] Waiting for and clicking "Income Approach sidebar item"...</div>
+<div class="log log-success">[2025-12-05T13:56:29.292Z] "Income Approach sidebar item" clicked successfully.</div>
+<div class="log log-info">[2025-12-05T13:56:29.294Z] Waiting for Income Approach processing to begin...</div>
+<div class="log log-info">[2025-12-05T13:56:30.964Z] Spinner for Income Approach appeared.</div>
+<div class="log log-info">[2025-12-05T13:56:30.971Z] Waiting for Income Approach processing to complete...</div>
+<div class="log log-success">[2025-12-05T13:57:10.719Z] Extraction of Income Approach section completed in 42.46s.</div>
+<div class="log log-info
