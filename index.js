@@ -1,141 +1,73 @@
-// index.js
-
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 const logger = require('./logger');
 
-// --- CONFIGURATION ---
-// You MUST update these values for your specific websites.
-const WEBSITE_A_URL = 'https://app6-0.vercel.app/';
-const WEBSITE_B_URL = 'https://prod-pramaan.vercel.app/';
+const WEBSITE_B_URL = 'https://qa-pramaan.vercel.app/';
 
-// *** NEW: WEBSITE B LOGIN CREDENTIALS ***
-const WEBSITE_B_USERNAME = 'Admin';
-const WEBSITE_B_PASSWORD = 'Admin@2025';
+const WEBSITE_B_USERNAME = 'Abhi';
+const WEBSITE_B_PASSWORD = 'Admin';
 
-// Selectors are how Puppeteer finds elements on a page.
-// You need to find the correct ones by inspecting the elements in your browser.
-const PDF_DOWNLOAD_SELECTOR = '#download-pdf-button'; // e.g., a button with id="download-pdf-button"
-// *** UPDATED: WEBSITE B LOGIN SELECTORS - Using XPath to find inputs by their labels ***
 const WEBSITE_B_USERNAME_SELECTOR = "::-p-xpath(//label[contains(., 'Username')]/following-sibling::div/input)";
 const WEBSITE_B_PASSWORD_SELECTOR = "::-p-xpath(//label[contains(., 'Password')]/following-sibling::div/input)";
-const WEBSITE_B_LOGIN_BUTTON_SELECTOR = 'button[type="submit"]'; // e.g., button with type="submit"
-const HTML_UPLOAD_SELECTOR = 'input[type="file"][accept*="html"]'; // The hidden HTML file input
-const PDF_UPLOAD_SELECTOR = 'input[type="file"][accept*="pdf"]'; // The hidden PDF file input
-const SUBMIT_BUTTON_SELECTOR = '#submit-form-button'; // The button to click after uploading
+const WEBSITE_B_LOGIN_BUTTON_SELECTOR = 'button[type="submit"]';
+const PDF_UPLOAD_SELECTOR = "::-p-xpath(//div[contains(@class, 'MuiPaper-root') and .//*[contains(., 'PDF')]]//input[@type='file'])";
+const SUBMIT_BUTTON_SELECTOR = '#submit-form-button';
+const MAIN_LOADING_INDICATOR_SELECTOR = "::-p-xpath(//*[contains(@class, 'MuiCircularProgress-root')])";
 
-// *** PASTE THE SELECTOR YOU COPIED FROM THE BROWSER HERE ***
-// This is an XPath selector that finds a button containing the text "Full File Review", ignoring case.
-const FULL_FILE_REVIEW_BUTTON_SELECTOR = "::-p-xpath(//*[normalize-space(.)='FULL FILE REVIEW'])";
-
+const FULL_FILE_REVIEW_BUTTON_SELECTOR = "::-p-xpath(//a[@href='/extractor']//div[@class='MuiBox-root css-mskaiy'])";
+//const PROMPT_ANALYSIS_BUTTON_SELECTOR = "::-p-xpath(//span[normalize-space()='Prompt Analysis'])";
+const VERIFY_SUBJECT_ADDRESS_BUTTON_SELECTOR = "::-p-xpath(//button[normalize-space()='Run Full Analysis'])";
+// const MATCH_COMP_ADDRESSES_BUTTON_SELECTOR = "::-p-xpath(//button[normalize-space()='Match Comp Addresses'])";
+// const VERIFY_PHOTO_LABELS_BUTTON_SELECTOR = "::-p-xpath(//button[normalize-space()='Verify Photo Labels & Duplicates'])";
+// const PAGE_PRESENT_CHECKER_SELECTOR = "::-p-xpath(//button[normalize-space()='Page Present Check'])";
+// const COMPARE_ROOM_COUNTS_BUTTON_SELECTOR = "::-p-xpath(//button[normalize-space()='Compare Room Counts'])";
+const PIN_SIDEBAR_BUTTON_SELECTOR = "::-p-xpath(//button[@aria-label='Pin Sidebar']//*[name()='svg'])";
 const DOWNLOAD_PATH = path.resolve(__dirname, 'downloads');
-const SAVED_HTML_PATH = path.join(DOWNLOAD_PATH, 'saved-page.html');
-// We will determine the PDF path dynamically after it's downloaded.
-// --- END CONFIGURATION ---
 
 /**
- * This function navigates to Website A, saves its HTML, and downloads the PDF.
- * @param {import('puppeteer').Browser} browser - The Puppeteer browser instance.
- * @returns {Promise<string>} - The File path of the downloaded PDF.
+ * Waits for a download to complete by listening for the 'Browser.downloadProgress' event.
+ * This is a more robust method for handling downloads.
+ * @param {import('puppeteer').CDPSession} browserClient - The browser-level CDP session.
+ * @param {string} expectedFileType - A string to identify the file, e.g., 'Final PDF' or 'Error Log'.
+ * @param {number} [timeoutMs=180000] - Timeout in milliseconds.
+ * @returns {Promise<string>} - The path of the downloaded file.
  */
-async function processWebsiteA(browser) {
-    logger.log('--- Starting Website A ---');
-    const page = await browser.newPage();
 
-    // Configure the page to download Files to our 'downloads' folder
-    const client = await page.target().createCDPSession();
-    await client.send('Page.setDownloadBehavior', {
-        behavior: 'allow',
-        downloadPath: DOWNLOAD_PATH,
-    });
+const waitForDownload = (browserClient, expectedFileType, timeoutMs = 180000) => {
+    logger.log(`Waiting for ${expectedFileType} download to complete...`);
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            browserClient.off('Browser.downloadProgress', onProgress);
+            reject(new Error(`Timeout waiting for ${expectedFileType} download to complete.`));
+        }, timeoutMs);
 
-    logger.log(`Navigating to ${WEBSITE_A_URL}...`);
-    await page.goto(WEBSITE_A_URL, { waitUntil: 'networkidle2' });
-
-    // 1. Save the page as HTML
-    logger.log('Saving page content as HTML...');
-    const htmlContent = await page.content();
-    fs.writeFileSync(SAVED_HTML_PATH, htmlContent);
-    logger.log(`HTML saved to: ${SAVED_HTML_PATH}`);
-
-    // 2. Download the PDF
-    logger.log('Finding and clicking the PDF download link...');
-    // We listen for the 'response' event to find out the name of the downloaded File.
-    let downloadedPdfPath = '';
-    page.on('response', (response) => {
-        const disposition = response.headers()['content-disposition'];
-        if (disposition && disposition.includes('attachment')) {
-            const FilenameMatch = disposition.match(/Filename="(.+?)"/);
-            if (FilenameMatch && FilenameMatch[1].endsWith('.pdf')) {
-                const pdfFilename = FilenameMatch[1];
-                downloadedPdfPath = path.join(DOWNLOAD_PATH, pdfFilename);
-                logger.log(`PDF download detected: ${pdfFilename}`);
+        const onProgress = (event) => {
+            if (event.state === 'completed') {
+                logger.log(`${expectedFileType} download completed: ${event.guid}`);
+                clearTimeout(timeout);
+                browserClient.off('Browser.downloadProgress', onProgress);
+                if (!event.filePath) {
+                    reject(new Error(`Download of ${expectedFileType} completed, but no filePath was provided.`));
+                    return;
+                }
+                resolve(event.filePath);
+            } else if (event.state === 'canceled') {
+                logger.error(`${expectedFileType} download canceled: ${event.guid}`);
+                clearTimeout(timeout);
+                browserClient.off('Browser.downloadProgress', onProgress);
+                reject(new Error(`${expectedFileType} download was canceled.`));
             }
-        }
+        };
+
+        browserClient.on('Browser.downloadProgress', onProgress);
     });
-
-    await page.waitForSelector(PDF_DOWNLOAD_SELECTOR);
-    await page.click(PDF_DOWNLOAD_SELECTOR);
-
-    // Wait a bit for the download to complete. This might need adjustment.
-    logger.log('Waiting for download to complete...');
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
-
-    if (!downloadedPdfPath) {
-        throw new Error('Could not determine the downloaded PDF File path. The download may have failed or the Filename was not detected.');
-    }
-    
-    logger.success(`PDF successFully downloaded to: ${downloadedPdfPath}`);
-    await page.close();
-    logger.log('--- Finished Website A ---');
-    return downloadedPdfPath;
-}
+};
 
 /**
  * Validates that a list of fields in the "Subject" section are not empty.
  * @param {import('puppeteer').Page} page - The Puppeteer page instance.
  */
-// async function validateSubjectFields(page) {
-//     logger.log('\n--- Validating Subject Fields ---');
-
-//     const fieldsToValidate = [
-//         'Property Address',
-//         'City',
-//         'County',
-//         'State',
-//         'Zip Code',
-//         'Borrower',
-//         'Owner of Public Record',
-//         'Legal Description',
-//         "Assessor's Parcel #",
-//         'Tax Year',
-//         'R.E. Taxes $',
-//         'Neighborhood Name',
-//         'Map Reference',
-//         'Census Tract',
-//         'Occupant',
-//         'Special Assessments $',
-//         'PUD',
-//         'HOA $',
-//         'Property Rights Appraised',
-//         'Assignment Type',
-//         'Lender/Client',
-//         'Address (Lender/Client)',
-//         'Offered for Sale in Last 12 Months',
-//         'Report data source(s) used, offering price(s), and date(s)',
-//     ];
-
-//     for (const fieldName of fieldsToValidate) {
-//         // This XPath finds the label containing the field name, then finds the associated input/value field.
-//         const valueSelector = `::-p-xpath(//label[contains(., "${fieldName}")]/following-sibling::div//div[contains(@class, 'editable-field-value')])`;
-//         const valueElement = await page.$(valueSelector);
-//         const value = valueElement ? await page.evaluate(el => el.textContent.trim(), valueElement) : null;
-
-//         logger.log(`[${value ? '✅' : '❌'}] ${fieldName}: ${value || '--- EMPTY ---'}`);
-//     }
-//     logger.log('--- Subject Field Validation Complete ---');
-// }
 
 /**
  * A helper function that waits for a selector to be visible, then clicks it.
@@ -145,29 +77,44 @@ async function processWebsiteA(browser) {
  */
 async function waitAndClick(page, selector, elementNameForLog, retries = 3) {
     logger.log(`Waiting for and clicking "${elementNameForLog}"...`);
+    const isSidebarItem = elementNameForLog.includes('sidebar item');
+
     for (let i = 0; i <= retries; i++) {
         try {
-            // If it's a sidebar item, first ensure the sidebar itself is scrolled into view.
-            if (elementNameForLog.includes('sidebar item')) {
+            if (isSidebarItem) {
                 const sidebarContainerSelector = "::-p-xpath(//div[contains(@class, 'sidebar')])";
                 const sidebarContainer = await page.waitForSelector(sidebarContainerSelector);
                 await sidebarContainer.evaluate(el => el.scrollIntoView());
             }
-            // Wait for the specific element to be present, scroll it into view, and then click.
+
             const element = await page.waitForSelector(selector, { timeout: 30000 });
             await element.scrollIntoView();
             await element.click();
             logger.success(`"${elementNameForLog}" clicked successfully.`);
-            return; // Success, exit the loop
+
+            if (isSidebarItem) {
+                // After clicking a sidebar item, the sidebar is open. Try to pin it.
+                try {
+                    const pinButton = await page.waitForSelector(PIN_SIDEBAR_BUTTON_SELECTOR, { timeout: 2000, visible: true });
+                    logger.log('Pinning the sidebar...');
+                    await pinButton.click();
+                    logger.success('Sidebar pinned.');
+                } catch (e) {
+                    // Not an error, sidebar is likely already pinned or doesn't have a pin button.
+                    logger.log('Sidebar pin button not found, assuming it is already pinned.');
+                }
+            }
+
+            return;
         } catch (error) {
             logger.warn(`Attempt ${i + 1} failed for "${elementNameForLog}". Error: ${error.message}`);
             if (i < retries) {
-                const delay = 5000; // 5 second delay before retrying
+                const delay = 5000;
                 logger.log(`Retrying in ${delay / 1000} seconds...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             } else {
                 logger.warn(`Skipping "${elementNameForLog}" after all attempts failed.`);
-                return; // Skip this item and continue
+                return;
             }
         }
     }
@@ -183,16 +130,13 @@ async function processSidebarItem(page, sectionName, timeout) {
     logger.log(`--- Processing Sidebar Item: ${sectionName} (Timeout: ${timeout / 1000}s) ---`);
     const startTime = Date.now();
 
-    // Use translate() to make the text comparison case-insensitive.
     const sidebarSelector = `::-p-xpath(//div[contains(@class, 'sidebar')]//a[.//span[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${sectionName.toLowerCase()}')]])`;
     await waitAndClick(page, sidebarSelector, `${sectionName} sidebar item`);
 
     const spinnerSelector = `::-p-xpath(//div[contains(@class, 'sidebar')]//a[.//span[contains(text(), '${sectionName}')]]//*[contains(@class, 'MuiCircularProgress-root')])`;
 
-    // First, wait for the section-specific spinner to appear. This confirms processing has started.
     logger.log(`Waiting for ${sectionName} processing to begin...`);
     try {
-        // Use a shorter timeout here. If the spinner doesn't appear quickly, we assume it won't.
         await page.waitForSelector(spinnerSelector, { visible: true, timeout: 3000 });
         logger.log(`Spinner for ${sectionName} appeared.`);
     } catch (e) {
@@ -200,113 +144,136 @@ async function processSidebarItem(page, sectionName, timeout) {
         await waitAndClick(page, sidebarSelector, `${sectionName} sidebar item (2nd attempt)`);
     }
 
-    // Now, wait for the section-specific spinner to disappear.
     logger.log(`Waiting for ${sectionName} processing to complete...`);
     await page.waitForSelector(spinnerSelector, { hidden: true, timeout: timeout });
 
-    // Finally, wait for any global loading indicators to also disappear to ensure the page is fully idle.
-    const mainLoadingIndicatorSelector = "::-p-xpath(//*[contains(@class, 'MuiCircularProgress-root')])";
-    await page.waitForSelector(mainLoadingIndicatorSelector, { hidden: true, timeout: timeout });
+    await page.waitForSelector(MAIN_LOADING_INDICATOR_SELECTOR, { hidden: true, timeout: timeout });
 
     const endTime = Date.now();
     const durationInSeconds = ((endTime - startTime) / 1000).toFixed(2);
     logger.success(`Extraction of ${sectionName} section completed in ${durationInSeconds}s.`);
 }
 /**
- * This function navigates to Website B and uploads the Files.
- * @param {import('puppeteer').Browser} browser - The Puppeteer browser instance.
- * @param {string} pdfFilePath - The path to the PDF File to upload.
- * @param {string} htmlFilePath - The path to the HTML File to upload.
+ * Clicks a button and waits for the main loading indicator to disappear.
+ * @param {import('puppeteer').Page} page
+ * @param {string} selector
+ * @param {string} elementNameForLog
+ * @param {number} timeout
  */
-async function processWebsiteB(browser, pdfFilePath, htmlFilePath) {
+async function clickAndWaitForExtraction(page, selector, elementNameForLog, timeout) {
+    await waitAndClick(page, selector, elementNameForLog);
+    logger.log(`Waiting for "${elementNameForLog}" extraction to complete...`);
+
+    // To make this more robust, we first wait for the loading indicator to appear,
+    // and then we wait for it to disappear. This avoids race conditions where
+    // the operation is too fast and the indicator is gone before we start waiting.
+    try {
+        await page.waitForSelector(MAIN_LOADING_INDICATOR_SELECTOR, { visible: true, timeout: 5000 });
+        logger.log(`Loading indicator appeared for "${elementNameForLog}".`);
+    } catch (error) {
+        logger.warn(`Loading indicator for "${elementNameForLog}" did not appear within 5s. The operation might have been too fast. Continuing to wait for it to be hidden.`);
+    }
+
+    await page.waitForSelector(MAIN_LOADING_INDICATOR_SELECTOR, { hidden: true, timeout: timeout });
+    logger.success(`"${elementNameForLog}" operation completed.`);
+}
+/**
+ * This function navigates to Website B and uploads the Files.
+ * @param {import('puppeteer').Browser} browser 
+ * @param {string} pdfFilePath 
+ */
+async function processWebsiteB(browser, pdfFilePath, isFirstRun = false) {
     logger.log('\n--- Starting Website B ---');
+    const startTime = Date.now();
     const page = await browser.newPage();
 
-    // NEW: Configure the page to download Files to our 'downloads' folder
-    const client = await page.target().createCDPSession();
-    await client.send('Page.setDownloadBehavior', {
+    const browserClient = await browser.target().createCDPSession();
+    await browserClient.send('Browser.setDownloadBehavior', {
         behavior: 'allow',
-        downloadPath: DOWNLOAD_PATH,
+        downloadPath: path.resolve(__dirname),
+        eventsEnabled: true,
     });
 
     logger.log(`Navigating to ${WEBSITE_B_URL}...`);
     await page.goto(WEBSITE_B_URL, { waitUntil: 'networkidle2' });
 
-    // --- NEW: LOGIN LOGIC ---
-    logger.log('Attempting to log in...');
-    try {
-        // Wait for the login page title to confirm we are on the right page.
-        const loginTitleSelector = "::-p-xpath(//*[normalize-space(.)='DJRB Review'])";
-        await page.waitForSelector(loginTitleSelector, { timeout: 10000 });
-        logger.log('Login page title "DJRB Review" found.');
+    if (isFirstRun) {
+        logger.log('Attempting to log in...');
+        try {
+            const loginTitleSelector = "::-p-xpath(//*[normalize-space(.)='DJRB Review'])";
+            await page.waitForSelector(loginTitleSelector, { timeout: 10000 });
+            logger.log('Login page title "DJRB Review" found.');
 
-        // Wait for the username field to be visible, which indicates a login page.
-        await page.waitForSelector(WEBSITE_B_USERNAME_SELECTOR, { timeout: 30000 });
-        logger.log('Login form found. Entering credentials...');
+            await page.waitForSelector(WEBSITE_B_USERNAME_SELECTOR, { timeout: 30000 });
+            logger.log('Login form found. Entering credentials...');
 
-        await page.type(WEBSITE_B_USERNAME_SELECTOR, WEBSITE_B_USERNAME);
-        await page.type(WEBSITE_B_PASSWORD_SELECTOR, WEBSITE_B_PASSWORD);
+            await page.type(WEBSITE_B_USERNAME_SELECTOR, WEBSITE_B_USERNAME);
+            await page.type(WEBSITE_B_PASSWORD_SELECTOR, WEBSITE_B_PASSWORD);
 
-        await page.click(WEBSITE_B_LOGIN_BUTTON_SELECTOR);
-        logger.log('Login button clicked. Waiting for response...');
+            await page.click(WEBSITE_B_LOGIN_BUTTON_SELECTOR);
+            logger.log('Login button clicked. Waiting for response...');
 
-        // After clicking, wait for one of two things to happen:
-        // 1. The welcome text appears (successful login).
-        // 2. An error message appears (failed login).
-        const welcomeTextSelector = "::-p-xpath(//*[contains(text(), 'Welcome to Appraisal Tools')])";
-        const loginErrorSelector = "::-p-xpath(//*[contains(@class, 'MuiAlert-root') and contains(., 'Invalid')])";
+            const welcomeTextSelector = "::-p-xpath(//*[contains(text(), 'Appraisal Tools')])";
+            const loginErrorSelector = "::-p-xpath(//*[contains(@class, 'MuiAlert-root') and contains(., 'Invalid')])";
 
-        // Use Promise.race as a fallback for older Puppeteer versions that don't have page.waitForRace()
-        await Promise.race([
-            page.waitForSelector(welcomeTextSelector),
-            page.waitForSelector(loginErrorSelector),
-        ]);
+            await Promise.race([
+                page.waitForSelector(welcomeTextSelector),
+                page.waitForSelector(loginErrorSelector),
+            ]);
 
-        // Now, check which one was found.
-        if (await page.$(loginErrorSelector)) {
-            throw new Error('Login failed. The page displayed an "Invalid" credentials error.');
+            if (await page.$(loginErrorSelector)) {
+                throw new Error('Login failed. The page displayed an "Invalid" credentials error.');
+            }
+
+            logger.success('Login successful! Welcome text found.');
+        } catch (error) {
+            throw new Error(`Login failed. Please check your credentials. Original error: ${error.message}`);
         }
-
-        logger.success('Login successful! Welcome text found.');
-    } catch (error) {
-        throw new Error(`Login failed. Please check your credentials. Original error: ${error.message}`);
+    } else {
+        logger.log('Skipping login for subsequent file, assuming session is active.');
+        try {
+            const welcomeTextSelector = "::-p-xpath(//*[contains(text(), 'Appraisal Tools')])";
+            await page.waitForSelector(welcomeTextSelector, { timeout: 30000 });
+            logger.success('Dashboard loaded, session is active.');
+        } catch (error) {
+            throw new Error(`Could not verify active session on subsequent run. Dashboard welcome text not found. Error: ${error.message}`);
+        }
     }
 
-    // It's good practice to wait for the network to be idle after an action.
     await page.waitForNetworkIdle({ idleTime: 500 });
 
-    // 2. Find and click on the "Full File Review" element.
     await waitAndClick(page, FULL_FILE_REVIEW_BUTTON_SELECTOR, "Full File Review");
 
-    // --- New steps for the extractor page ---
-
-    // 3. Wait for the new page to load by waiting for the PDF upload button to be visible.
     logger.log('Waiting for the extractor page to load...');
-    const selectPdfButtonSelector = "::-p-xpath(//button[contains(., 'Select PDF File')])";
-    await page.waitForSelector(selectPdfButtonSelector);
+    try {
+        await page.waitForSelector(MAIN_LOADING_INDICATOR_SELECTOR, { visible: true, timeout: 5000 });
+        await page.waitForSelector(MAIN_LOADING_INDICATOR_SELECTOR, { hidden: true, timeout: 60000 });
+    } catch (e) {
+        // Loader might not appear or appeared/disappeared too quickly
+    }
+
+    // Wait for the "Upload Documents" header to confirm page load
+    const uploadDocumentsHeader = "::-p-xpath(//h6[contains(., 'Upload Documents')])";
+    await page.waitForSelector(uploadDocumentsHeader, { visible: true, timeout: 60000 });
+
+    const formTypeDropdownSelector = "::-p-xpath(//label[contains(., 'Form Type')]/following-sibling::div//input)";
+    await page.waitForSelector(formTypeDropdownSelector, { visible: true, timeout: 60000 });
     logger.log('Extractor page loaded.');
 
-    // 4. Set the Form Type to ensure all necessary sections are visible.
-    // '1004' is a common condo form and should make the 'CONDO/CO-OP' section appear.
     logger.log("Setting Form Type to '1004'...");
-    const formTypeDropdownSelector = '#form-type-select';
-    await page.waitForSelector(formTypeDropdownSelector);
-    await page.click(formTypeDropdownSelector); // Open the dropdown
-    const formTypeOptionSelector = `li[data-value='1004']`;
+    await page.click(formTypeDropdownSelector);
+    const formTypeOptionSelector = "::-p-xpath(//li[@role='option' and contains(., '1004')])";
     await waitAndClick(page, formTypeOptionSelector, "Form Type '1004'");
 
-    // 4. Upload the PDF file.
     logger.log('Uploading PDF file...');
     const pdfUploadInput = await page.waitForSelector(PDF_UPLOAD_SELECTOR);
     await pdfUploadInput.uploadFile(pdfFilePath);
     logger.log('PDF file selected.');
 
-    // Wait for the main loading indicator to disappear after PDF upload.
     logger.log('Waiting for initial PDF processing to complete...');
-    const mainLoadingIndicatorSelector = "::-p-xpath(//*[contains(@class, 'MuiCircularProgress-root')])";
-    await page.waitForSelector(mainLoadingIndicatorSelector, { hidden: true, timeout: 180000 }); // Wait up to 3 minutes
+    await page.waitForSelector(MAIN_LOADING_INDICATOR_SELECTOR, { hidden: true, timeout: 180000 }); // Wait up to 3 minutes
 
-    // Define timeouts for each section in milliseconds
+
     const TIMEOUTS = {
         INITIAL: 900000, // 15 minutes
         LONG: 600000,    // 10 minutes
@@ -314,27 +281,12 @@ async function processWebsiteB(browser, pdfFilePath, htmlFilePath) {
     };
 
     await processSidebarItem(page, 'Subject', TIMEOUTS.INITIAL);
-
-    // NEW: Wait for the popup and click the "Extract Contract" button.
-    // First, wait for the dialog itself to appear.
-    const dialogSelector = "::-p-xpath(//div[@role='dialog'])";
-    logger.log('Waiting for the contract dialog to appear...');
-    await page.waitForSelector(dialogSelector, { visible: true });
-    logger.log('Contract dialog is visible.');
-    const extractContractButtonSelector = "::-p-xpath(//div[contains(@role, 'dialog')]//button[contains(., 'Extract Contract')])";
-    await waitAndClick(page, extractContractButtonSelector, "Extract Contract");
-
-    logger.log('Waiting for contract extraction to complete...');
-    await page.waitForSelector(mainLoadingIndicatorSelector, { hidden: true, timeout: 180000 }); // Wait up to 3 minutes
-    logger.log('Contract extraction completed.');
-
-    // The "Contract" section is already loaded by the "Extract Contract" button, so we can use a short timeout.
     await processSidebarItem(page, 'Contract', TIMEOUTS.LONG);
     await processSidebarItem(page, 'Neighborhood', TIMEOUTS.LONG);
     await processSidebarItem(page, 'Site', TIMEOUTS.LONG);
     await processSidebarItem(page, 'Improvements', TIMEOUTS.LONG);
-    await processSidebarItem(page, 'Sales Comparison & History', TIMEOUTS.LONG);
-    await processSidebarItem(page, 'Info of Sales', TIMEOUTS.LONG);
+    await processSidebarItem(page, 'Sales Comparison Approach', TIMEOUTS.LONG);
+    await processSidebarItem(page, 'Sales GRID Section', TIMEOUTS.LONG);
     await processSidebarItem(page, 'Sales History', TIMEOUTS.LONG);
     await processSidebarItem(page, 'RECONCILIATION', TIMEOUTS.LONG);
     await processSidebarItem(page, 'Cost Approach', TIMEOUTS.LONG);
@@ -342,63 +294,61 @@ async function processWebsiteB(browser, pdfFilePath, htmlFilePath) {
     await processSidebarItem(page, 'PUD Information', TIMEOUTS.LONG);
     await processSidebarItem(page, 'Market Conditions', TIMEOUTS.LONG);
     await processSidebarItem(page, 'CONDO/CO-OP', TIMEOUTS.LONG);
-    await processSidebarItem(page, 'CERTIFICATION', TIMEOUTS.LONG);  
+    await processSidebarItem(page, 'CERTIFICATION', TIMEOUTS.LONG);
 
-    // --- Download Final PDF ---
-    logger.log('\n--- Generating and Storing Final PDF ---');
+    // await waitAndClick(page, PROMPT_ANALYSIS_BUTTON_SELECTOR, "Prompt Analysis");
 
-    // We listen for the 'response' event to find out the name of the downloaded File.
-    let finalPdfPath = '';
-    const downloadPromise = new Promise(resolve => {
-        page.on('response', (response) => {
-            const disposition = response.headers()['content-disposition'];
-            if (disposition && disposition.includes('attachment')) {
-                const filenameMatch = disposition.match(/filename="(.+?)"/i);
-                if (filenameMatch && filenameMatch[1].endsWith('.pdf')) {
-                    const pdfFilename = filenameMatch[1];
-                    finalPdfPath = path.join(DOWNLOAD_PATH, pdfFilename);
-                    logger.log(`Final PDF download detected: ${pdfFilename}`);
-                    resolve();
-                }
-            }
-        });
-    });
+    const extractionSteps = [
+        { selector: VERIFY_SUBJECT_ADDRESS_BUTTON_SELECTOR, name: "Run Full Analysis" }
+    ];
 
-    // NEW: Click the "Generate PDF" button after all sections are processed.
-    const generatePdfButtonSelector = "::-p-xpath(//button[contains(., 'Generate PDF')])";
-    await waitAndClick(page, generatePdfButtonSelector, "Generate PDF");
+    for (const step of extractionSteps) {
+        await clickAndWaitForExtraction(page, step.selector, step.name, TIMEOUTS.LONG);
+    }
+    logger.log('\n--- Generating and Storing Final Files ---');
 
-    const generateerrorlogButtonSelector = "::-p-xpath(//button[contains(., 'Generate Error Log')])";
-    await waitAndClick(page, generateerrorlogButtonSelector, "Generate Error Log");
-    logger.log('Waiting for final PDF download to start...');
-    await downloadPromise; // Wait for the download to be detected.
+    // const generatePdfButtonSelector = "::-p-xpath(//button[contains(., 'Generate PDF')])";
+    // await waitAndClick(page, generatePdfButtonSelector, "Generate PDF");
+    // logger.success(`Final PDF successfully stored at: ${finalPdfPath}`);
 
-    // Add a small delay to ensure the file is fully written to disk.
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    logger.success(`Final PDF successfully stored at: ${finalPdfPath}`);
+    const generateErrorLogButtonSelector = "::-p-xpath(//button[contains(., 'Log')])";
+    const errorLogDownloadPromise = waitForDownload(browserClient, 'LOG');
+    await waitAndClick(page, generateErrorLogButtonSelector, "LOG");
+    const errorLogPath = await errorLogDownloadPromise;
+    logger.success(`Error Log successfully stored at: ${errorLogPath}`);
+
+    const generateSAVEButtonSelector = "::-p-xpath(//button[contains(., 'Save')])";
+    await clickAndWaitForExtraction(page, generateSAVEButtonSelector, "Save", TIMEOUTS.LONG);
+
+    logger.log('Waiting for 30 seconds after saving to DB...');
+    await new Promise(resolve => setTimeout(resolve, 30000));
+
+    const endTime = Date.now();
+    const durationInMinutes = ((endTime - startTime) / 60000).toFixed(2);
+    logger.success(`\n✅ Website B processing completed in ${durationInMinutes} minutes.`);
+    await page.close();
+    logger.log('--- Finished Website B ---');
+    await new Promise(resolve => setTimeout(resolve, 2000));
 }
 
-// --- Main Execution ---
 (async () => {
     let browser;
     try {
-        // Initialize the logger
         logger.init();
-
         logger.log('Launching browser...');
         browser = await puppeteer.launch({
-            headless: false, // Set to 'true' to run in the background, 'false' to watch it happen.
-            slowMo: 10,      // Slows down Puppeteer operations by 20ms to make it easier to see.
-            protocolTimeout: 600000, // Increase protocol timeout to 10 minutes to handle long-running tasks
+            headless: true,
+            slowMo: 10,
+            protocolTimeout: 600000,
             args: [
-                '--start-maximized', // This will launch the browser in a maximized window.
-                '--disable-dev-shm-usage', // Recommended for running in Docker, but good for stability.
-                '--no-sandbox', // Often required in CI environments.
-                '--js-flags=--max-old-space-size=16384' // Increase V8's heap size to 16GB.
+                '--start-maximized',
+                '--disable-dev-shm-usage',
+                '--no-sandbox',
+                '--js-flags=--max-old-space-size=16384'
             ]
         });
 
-        // Find all PDF files in the downloads directory to process them one by one.
+
         const filesInDownloads = fs.readdirSync(DOWNLOAD_PATH);
         const pdfFiles = filesInDownloads.filter(file => file.toLowerCase().endsWith('.pdf'));
 
@@ -408,15 +358,12 @@ async function processWebsiteB(browser, pdfFilePath, htmlFilePath) {
 
         logger.log(`Found ${pdfFiles.length} PDF file(s) to process: ${pdfFiles.join(', ')}`);
 
-        const htmlFilePath = SAVED_HTML_PATH;
-        if (!fs.existsSync(htmlFilePath)) {
-            throw new Error(`Required HTML file not found: ${htmlFilePath}`);
-        }
-
+        let isFirstRun = true;
         for (const pdfFile of pdfFiles) {
             const pdfFilePath = path.join(DOWNLOAD_PATH, pdfFile);
             logger.log(`\n--- Starting workflow for: ${pdfFile} ---`);
-            await processWebsiteB(browser, pdfFilePath, htmlFilePath);
+            await processWebsiteB(browser, pdfFilePath, isFirstRun);
+            isFirstRun = false;
             logger.success(`--- Finished workflow for: ${pdfFile} ---`);
         }
 

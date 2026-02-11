@@ -1,14 +1,25 @@
-// logger.js
 const fs = require('fs');
 const path = require('path');
 
-const LOG_FILE_PATH = path.resolve(__dirname, 'run-log.html');
+const LOG_FILE = path.join(__dirname, 'run-log.html');
 
-/**
- * Creates or clears the log file and writes the initial HTML structure.
- */
-function init() {
-    const initialContent = `
+function getTimestamp() {
+    return new Date().toISOString();
+}
+
+function writeLog(level, message) {
+    const logEntry = `<div class="log log-${level}">[${getTimestamp()}] ${message}</div>\n`;
+    console.log(`[${level.toUpperCase()}] ${message}`);
+    try {
+        fs.appendFileSync(LOG_FILE, logEntry);
+    } catch (e) {
+        console.error("Failed to write to log file:", e);
+    }
+}
+
+module.exports = {
+    init: () => {
+        const header = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,52 +39,12 @@ function init() {
 <body>
     <h1>Automation Run Log</h1>
     <p>This page will auto-refresh every 5 seconds.</p>
-    <div id="log-container"></div>
-    <script>
-        // Scroll to the bottom on load
-        window.scrollTo(0, document.body.scrollHeight);
-    </script>
-</body>
-</html>`;
-    fs.writeFileSync(LOG_FILE_PATH, initialContent);
-    console.log(`📝 UI log created. Open this file in your browser: ${LOG_FILE_PATH}`);
-}
-
-/**
- * Appends a message to the log file and prints to console.
- * @param {string} message The message to log.
- * @param {'info' | 'warn' | 'error' | 'success'} level The log level.
- */
-function write(message, level = 'info') {
-    // Also log to the console
-    const consoleMap = {
-        info: console.log,
-        warn: console.warn,
-        error: console.error,
-        success: console.log,
-    };
-    consoleMap[level](message);
-
-    // Append to the HTML log file
-    const timestamp = new Date().toISOString();
-    const logEntryHtml = `<div class="log log-${level}">[${timestamp}] ${message.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>\n`;
-
-    try {
-        let html = fs.readFileSync(LOG_FILE_PATH, 'utf8');
-        const insertionPoint = '</div>';
-        const insertionIndex = html.lastIndexOf(insertionPoint);
-        html = html.slice(0, insertionIndex) + logEntryHtml + html.slice(insertionIndex);
-        fs.writeFileSync(LOG_FILE_PATH, html);
-    } catch (e) {
-        // If the file doesn't exist, init() should have been called, but this is a safeguard.
-        console.error('Could not write to log file. It may not have been initialized.', e);
-    }
-}
-
-module.exports = {
-    init,
-    log: (message) => write(message, 'info'),
-    warn: (message) => write(message, 'warn'),
-    error: (message) => write(message, 'error'),
-    success: (message) => write(message, 'success'),
+    <div id="log-container">
+`;
+        fs.writeFileSync(LOG_FILE, header);
+    },
+    log: (msg) => writeLog('info', msg),
+    success: (msg) => writeLog('success', msg),
+    error: (msg) => writeLog('error', msg),
+    warn: (msg) => writeLog('warn', msg)
 };
